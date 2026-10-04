@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hello Pip</title>
+
+<style>
+/* Layout: one-screen app. Top bar with stars, scrollable stage underneath, big touch tiles everywhere.
+   Visual world: a sticker book on a sunny playground. Chunky rounded shapes, a hard 2D shadow, no gradients. */
+:root{
+  --bg:#e9f4ff; --bg2:#ffffff; --fg:#243352; --muted:#6c7c9c;
+  --card:#ffffff; --card-border:#d3e4fa; --card-shadow:#c3d8f3;
+  --sun:#ffc83d; --coral:#ff6f61; --grass:#49c285; --sky:#4b9dff; --grape:#9b74ff; --peach:#ffb37a;
+  --ok:#2fb573; --bad:#e5484d; --on-sun:#4a3500;
+  --font-display:'Fredoka','Comic Sans MS','Trebuchet MS',system-ui,sans-serif;
+  --font-body:'Fredoka',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121a2c; --bg2:#1a2440; --fg:#eef3ff; --muted:#a2b2d2;
+    --card:#213055; --card-border:#33477a; --card-shadow:#0d1424;
+    --sun:#ffd25a; --coral:#ff7f73; --grass:#4fd090; --sky:#5aa8ff; --grape:#ad8dff; --peach:#ffbf8c;
+    --ok:#3cc784; --bad:#ff6b6f; --on-sun:#3a2a00;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121a2c; --bg2:#1a2440; --fg:#eef3ff; --muted:#a2b2d2;
+  --card:#213055; --card-border:#33477a; --card-shadow:#0d1424;
+  --sun:#ffd25a; --coral:#ff7f73; --grass:#4fd090; --sky:#5aa8ff; --grape:#ad8dff; --peach:#ffbf8c;
+  --ok:#3cc784; --bad:#ff6b6f; --on-sun:#3a2a00;
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{
+  background:var(--bg); color:var(--fg); font-family:var(--font-body);
+  display:flex; flex-direction:column; overflow:hidden;
+  user-select:none; -webkit-user-select:none; touch-action:manipulation;
+  padding-top:env(safe-area-inset-top,0px); /*standalone*/
+}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0;margin:0}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
+h1,h2,h3{font-family:var(--font-display);margin:0;text-wrap:balance;line-height:1.1}
+p{margin:0}
+[hidden]{display:none!important}
+
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:90}
+
+#topbar{
+  display:flex;align-items:center;gap:10px;padding:10px 16px;
+  background:var(--bg2);box-shadow:0 3px 0 var(--card-border);z-index:5;flex:none;
+}
+.icon-btn{
+  width:46px;height:46px;border-radius:50%;background:var(--card);border:3px solid var(--card-border);
+  box-shadow:0 4px 0 var(--card-shadow);font-size:20px;display:grid;place-items:center;transition:transform .08s;
+}
+.icon-btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--card-shadow)}
+.top-title{flex:1;min-width:0;font-family:var(--font-display);font-weight:700;font-size:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top-stats{display:flex;align-items:center;gap:8px}
+.pill{
+  display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:999px;font-weight:700;font-size:17px;
+  background:var(--card);border:3px solid var(--card-border);font-variant-numeric:tabular-nums;
+}
+.pill.pop{animation:pop .5s}
+
+#stage{flex:1;min-height:0;overflow:auto;padding:16px;padding-bottom:calc(20px + env(safe-area-inset-bottom,0px));-webkit-overflow-scrolling:touch}
+.screen{display:none;flex-direction:column;gap:16px;width:100%;max-width:900px;margin:0 auto}
+.screen.active{display:flex}
+
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:10px;
+  border-radius:999px;padding:16px 28px;font-family:var(--font-display);font-weight:700;font-size:22px;
+  color:#fff;background:var(--sky);box-shadow:0 6px 0 rgba(0,0,0,.18);transition:transform .08s,box-shadow .08s;
+  min-height:60px;
+}
+.btn:active{transform:translateY(5px);box-shadow:0 1px 0 rgba(0,0,0,.18)}
+.btn-sky{background:var(--sky)}
+.btn-sun{background:var(--sun);color:var(--on-sun)}
+.btn-coral{background:var(--coral)}
+.btn-grass{background:var(--grass)}
+.btn-grape{background:var(--grape)}
+.btn-ghost{background:var(--card);color:var(--fg);border:3px solid var(--card-border);box-shadow:0 6px 0 var(--card-shadow)}
+.btn-ghost:active{box-shadow:0 1px 0 var(--card-shadow)}
+.btn-big{font-size:28px;padding:20px 36px;min-height:72px}
+.btn-sm{font-size:17px;padding:10px 18px;min-height:44px}
+.btn[disabled]{opacity:.5;pointer-events:none}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:center}
+.row.between{justify-content:space-between}
+.center{text-align:center}
+.muted{color:var(--muted)}
+.small{font-size:15px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px}
+.tile{
+  background:var(--card);border:3px solid var(--card-border);border-radius:24px;box-shadow:0 7px 0 var(--card-shadow);
+  padding:14px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;min-height:150px;justify-content:center;
+  transition:transform .1s,box-shadow .1s;position:relative;color:var(--fg);
+}
+.tile:active{transform:translateY(5px);box-shadow:0 2px 0 var(--card-shadow)}
+.tile .e{font-size:58px;line-height:1.1}
+.tile .l{font-family:var(--font-display);font-weight:700;font-size:19px}
+.tile .crowns{font-size:14px;letter-spacing:1px;min-height:18px}
+.tile.locked{opacity:.55;filter:grayscale(1)}
+.tile .badge{position:absolute;top:-8px;right:-8px;background:var(--coral);color:#fff;border-radius:999px;padding:2px 9px;font-size:14px;font-weight:700;border:3px solid var(--bg)}
+
+/* Home */
+.hero{
+  display:flex;align-items:center;gap:16px;background:var(--card);border:3px solid var(--card-border);border-radius:28px;
+  padding:16px 18px;box-shadow:0 7px 0 var(--card-shadow);
+}
+.mascot{font-size:86px;line-height:1;cursor:pointer;display:inline-block;transition:transform .1s;filter:drop-shadow(0 6px 0 rgba(0,0,0,.12))}
+.mascot:active{transform:scale(.92)}
+.mascot.wiggle{animation:wiggle .7s}
+.mascot.bounce{animation:bounce .6s}
+.hero .txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.hero h2{font-size:24px}
+.bar{height:20px;border-radius:999px;background:var(--card-border);overflow:hidden;position:relative}
+.bar>i{display:block;height:100%;background:var(--sun);width:0;transition:width .5s;border-radius:999px}
+.bar.full>i{background:var(--grass)}
+.chest{font-size:44px;line-height:1;background:none}
+.chest.ready{animation:pulse 1.2s infinite}
+.section-title{font-size:20px;display:flex;align-items:center;gap:8px}
+
+/* Category screen */
+.modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+.mode{
+  border-radius:26px;padding:18px 12px;display:flex;flex-direction:column;align-items:center;gap:8px;color:#fff;
+  box-shadow:0 7px 0 rgba(0,0,0,.18);transition:transform .1s;min-height:150px;justify-content:center;
+}
+.mode:active{transform:translateY(5px);box-shadow:0 2px 0 rgba(0,0,0,.18)}
+.mode .e{font-size:52px;line-height:1}
+.mode .l{font-family:var(--font-display);font-weight:700;font-size:21px}
+.mode .d{font-size:14px;opacity:.92}
+.mode.m-learn{background:var(--sky)} .mode.m-quiz{background:var(--coral)} .mode.m-memory{background:var(--grape)} .mode.m-say{background:var(--grass)}
+.mode.m-say[disabled]{opacity:.5}
+.rewards{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.reward{width:70px;height:70px;border-radius:18px;display:grid;place-items:center;font-size:38px;background:var(--card);border:3px dashed var(--card-border)}
+.reward.won{border-style:solid;border-color:var(--sun);background:var(--card)}
+.reward.lockd{filter:grayscale(1);opacity:.5}
+
+/* Learn */
+.flash{
+  background:var(--card);border:3px solid var(--card-border);border-radius:32px;box-shadow:0 9px 0 var(--card-shadow);
+  padding:24px 16px;display:flex;flex-direction:column;align-items:center;gap:10px;cursor:pointer;transition:transform .1s;min-height:300px;justify-content:center;
+}
+.flash:active{transform:scale(.98)}
+.flash .e{font-size:clamp(110px,28vw,170px);line-height:1}
+.flash .en{font-family:var(--font-display);font-weight:700;font-size:clamp(34px,8vw,52px);color:var(--fg)}
+.flash .cs{font-size:22px;color:var(--muted)}
+.flash.pop{animation:pop .45s}
+.dots{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.dots i{width:10px;height:10px;border-radius:50%;background:var(--card-border);display:block}
+.dots i.done{background:var(--sun)} .dots i.cur{background:var(--sky);transform:scale(1.3)}
+
+/* Quiz */
+.prompt{
+  display:flex;align-items:center;justify-content:center;gap:12px;background:var(--card);border:3px solid var(--card-border);
+  border-radius:24px;padding:12px 16px;box-shadow:0 6px 0 var(--card-shadow);
+}
+.prompt .q{font-family:var(--font-display);font-weight:700;font-size:clamp(22px,5vw,32px)}
+.choices{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.choice{
+  aspect-ratio:1;max-height:36vh;width:100%;border-radius:28px;background:var(--card);border:4px solid var(--card-border);
+  box-shadow:0 8px 0 var(--card-shadow);display:grid;place-items:center;font-size:clamp(64px,18vw,130px);line-height:1;transition:transform .1s;
+}
+.choice:active{transform:translateY(5px);box-shadow:0 3px 0 var(--card-shadow)}
+.choice.right{border-color:var(--ok);animation:bounce .6s}
+.choice.wrong{border-color:var(--bad);animation:shake .5s;opacity:.55}
+.choice.dim{opacity:.35}
+.scoreline{display:flex;justify-content:center;gap:8px;font-weight:700;font-size:18px;font-variant-numeric:tabular-nums}
+
+/* Memory */
+.mem{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;max-width:560px;margin:0 auto;width:100%}
+@media (max-width:480px){.mem{grid-template-columns:repeat(3,1fr)}}
+.mcard{
+  aspect-ratio:1;border-radius:20px;background:var(--grape);border:4px solid rgba(255,255,255,.35);box-shadow:0 6px 0 rgba(0,0,0,.2);
+  display:grid;place-items:center;font-size:clamp(40px,10vw,72px);line-height:1;color:#fff;transition:transform .15s,background .15s;
+}
+.mcard:active{transform:translateY(3px)}
+.mcard .f{display:none}
+.mcard .b{display:block;font-size:.7em}
+.mcard.open,.mcard.done{background:var(--card);border-color:var(--card-border);box-shadow:0 6px 0 var(--card-shadow)}
+.mcard.open .f,.mcard.done .f{display:block;animation:pop .35s}
+.mcard.open .b,.mcard.done .b{display:none}
+.mcard.done{border-color:var(--ok);transform:scale(.94)}
+
+/* Say it */
+.mic{
+  width:120px;height:120px;border-radius:50%;background:var(--coral);color:#fff;font-size:56px;display:grid;place-items:center;
+  box-shadow:0 8px 0 rgba(0,0,0,.2);margin:0 auto;transition:transform .1s;
+}
+.mic:active{transform:translateY(5px)}
+.mic.listening{animation:pulse .9s infinite;background:var(--grass)}
+.heard{min-height:30px;font-size:20px;text-align:center}
+
+/* Result */
+.result{display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;padding:10px}
+.result .big{font-size:96px;line-height:1;animation:bounce .8s}
+.result h2{font-size:32px}
+.starsline{font-size:36px;letter-spacing:4px}
+
+/* Stickers */
+.album{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:10px}
+.sticker{
+  aspect-ratio:1;border-radius:20px;display:grid;place-items:center;font-size:46px;line-height:1;
+  background:var(--card);border:3px solid var(--card-border);box-shadow:0 5px 0 var(--card-shadow);transition:transform .1s;
+}
+.sticker:active{transform:scale(.94)}
+.sticker.none{border-style:dashed;box-shadow:none;color:var(--muted);font-size:30px}
+.sticker.new{animation:pop .6s;border-color:var(--sun)}
+
+/* Overlay (level up, chest) */
+.overlay{position:fixed;inset:0;background:rgba(10,20,40,.55);display:grid;place-items:center;z-index:80;padding:20px}
+.overlay .card{
+  background:var(--card);border:4px solid var(--sun);border-radius:32px;padding:28px 22px;max-width:420px;width:100%;
+  display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;box-shadow:0 10px 0 var(--card-shadow);animation:pop .5s;color:var(--fg);
+}
+.overlay .huge{font-size:110px;line-height:1}
+.toast{
+  position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
+  background:var(--fg);color:var(--bg);padding:12px 20px;border-radius:999px;font-weight:700;font-size:17px;z-index:85;
+  box-shadow:0 6px 0 rgba(0,0,0,.2);max-width:calc(100% - 32px);text-align:center;
+}
+
+/* Parent */
+.panel{background:var(--card);border:3px solid var(--card-border);border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.panel h3{font-size:19px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.stat{background:var(--bg);border-radius:14px;padding:10px 12px}
+.stat b{display:block;font-size:26px;font-variant-numeric:tabular-nums;font-family:var(--font-display)}
+.stat span{font-size:13px;color:var(--muted)}
+.tablewrap{overflow-x:auto;min-width:0}
+.table{width:100%;border-collapse:collapse;font-size:15px;font-variant-numeric:tabular-nums}
+.table th,.table td{padding:7px 8px;border-bottom:1px solid var(--card-border);text-align:left;white-space:nowrap}
+.table th{color:var(--muted);font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.04em}
+.chart{width:100%;height:auto;display:block}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:14px;color:var(--muted)}
+input[type=text],input[type=number],select,textarea{
+  font:inherit;color:var(--fg);background:var(--bg);border:2px solid var(--card-border);border-radius:12px;padding:10px 12px;width:100%;min-width:0;
+}
+textarea{min-height:110px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+input[type=range]{width:100%}
+.check{display:flex;align-items:center;gap:10px;font-size:16px}
+.check input{width:22px;height:22px}
+.mastery{display:inline-block;letter-spacing:1px}
+details summary{cursor:pointer;font-weight:700;font-size:17px;padding:6px 0}
+.gate{display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;padding:20px}
+.gate input{font-size:28px;text-align:center;max-width:160px}
+.danger{background:var(--bad)}
+
+@media (max-width:430px){.top-title{font-size:18px}.pill{padding:5px 9px;font-size:15px}.icon-btn{width:42px;height:42px}}
+@keyframes pop{0%{transform:scale(.6)}60%{transform:scale(1.12)}100%{transform:scale(1)}}
+@keyframes bounce{0%,100%{transform:translateY(0)}30%{transform:translateY(-18px) scale(1.06)}60%{transform:translateY(0)}80%{transform:translateY(-6px)}}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-10px)}40%,80%{transform:translateX(10px)}}
+@keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-12deg)}75%{transform:rotate(12deg)}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<canvas id="confetti"></canvas>
+
+<header id="topbar">
+  <button id="btnBack" class="icon-btn" aria-label="Zpět" hidden>◀</button>
+  <div id="topTitle" class="top-title">Hello Pip</div>
+  <div class="top-stats">
+    <span class="pill" id="starPill" title="Hvězdičky celkem">⭐ <b id="starCount">0</b></span>
+    <span class="pill" id="streakPill" title="Dny v řadě">🔥 <b id="streakCount">0</b></span>
+    <button id="btnParent" class="icon-btn" aria-label="Pro rodiče" title="Pro rodiče">🔒</button>
+  </div>
+</header>
+
+<main id="stage">
+
+  <!-- START -->
+  <section id="screen-start" class="screen active" style="align-items:center;text-align:center;gap:22px;padding-top:4vh">
+    <div class="mascot bounce" id="startMascot">🐣</div>
+    <h1 style="font-size:clamp(34px,9vw,60px)">Hello Pip</h1>
+    <p class="muted" style="font-size:20px;max-width:34ch">Ahoj! Já jsem Pip. Budeme se spolu učit anglicky. Ťukni na mě a uslyšíš, jak mluvím!</p>
+    <button class="btn btn-sun btn-big" id="btnStart">Jdeme na to! 🚀</button>
+    <p class="small muted" id="voiceNote"></p>
+  </section>
+
+  <!-- HOME -->
+  <section id="screen-home" class="screen">
+    <div class="hero">
+      <div class="mascot" id="homeMascot" role="button" aria-label="Pip">🐣</div>
+      <div class="txt">
+        <h2 id="homeGreeting">Ahoj!</h2>
+        <p class="muted small" id="mascotLevel">Pip je kuřátko</p>
+        <div class="bar" id="dailyBar" title="Dnešní cíl"><i></i></div>
+        <div class="row between" style="gap:6px">
+          <span class="small muted" id="dailyText">Dnes 0 / 15 ⭐</span>
+          <button class="chest" id="btnChest" aria-label="Truhla s překvapením">🎁</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row between">
+      <h2 class="section-title">Co se dnes naučíme?</h2>
+      <button class="btn btn-ghost btn-sm" id="btnStickers">📒 Nálepky <b id="stickerCount">0</b></button>
+    </div>
+    <div class="grid" id="catGrid"></div>
+
+    <div class="row between">
+      <h2 class="section-title">Slovo dne</h2>
+    </div>
+    <button class="hero" id="wodCard" style="cursor:pointer;text-align:left">
+      <span class="mascot" id="wodEmoji" style="font-size:70px">⭐</span>
+      <span class="txt">
+        <span style="font-family:var(--font-display);font-weight:700;font-size:30px" id="wodEn">star</span>
+        <span class="muted" id="wodCs">hvězda</span>
+      </span>
+      <span style="font-size:34px">🔊</span>
+    </button>
+  </section>
+
+  <!-- CATEGORY -->
+  <section id="screen-cat" class="screen">
+    <div class="hero" style="padding:12px 16px">
+      <div class="mascot" id="catEmoji" style="font-size:70px">🐶</div>
+      <div class="txt">
+        <h2 id="catName">Zvířata</h2>
+        <p class="muted small" id="catProgress">0 / 12 slovíček znáš</p>
+        <div class="bar" id="catBar"><i></i></div>
+      </div>
+    </div>
+    <div class="modes">
+      <button class="mode m-learn" data-mode="learn"><span class="e">📖</span><span class="l">Učím se</span><span class="d">Koukej a poslouchej</span></button>
+      <button class="mode m-quiz" data-mode="quiz"><span class="e">🔍</span><span class="l">Najdi</span><span class="d">Kde je…?</span></button>
+      <button class="mode m-memory" data-mode="memory"><span class="e">🃏</span><span class="l">Pexeso</span><span class="d">Najdi dvojice</span></button>
+      <button class="mode m-say" data-mode="say" id="modeSay"><span class="e">🎤</span><span class="l">Řekni to</span><span class="d">Mluv do mikrofonu</span></button>
+    </div>
+    <h3 class="section-title center" style="justify-content:center">Nálepky za tuhle sadu</h3>
+    <div class="rewards" id="catRewards"></div>
+    <p class="center small muted" id="catRewardHint"></p>
+  </section>
+
+  <!-- LEARN -->
+  <section id="screen-learn" class="screen">
+    <div class="dots" id="learnDots"></div>
+    <div class="flash" id="flash" role="button" aria-label="Přehrát slovíčko">
+      <div class="e" id="flashE">🐶</div>
+      <div class="en" id="flashEn">dog</div>
+      <div class="cs" id="flashCs">pes</div>
+    </div>
+    <div class="row">
+      <button class="btn btn-ghost" id="btnLearnSlow" title="Pomalu">🐢</button>
+      <button class="btn btn-sky" id="btnLearnSay" title="Znovu">🔊</button>
+      <button class="btn btn-ghost" id="btnLearnCz" title="Česky">🇨🇿</button>
+      <button class="btn btn-grass" id="btnLearnNext">Další ➡️</button>
+    </div>
+  </section>
+
+  <!-- QUIZ -->
+  <section id="screen-quiz" class="screen">
+    <div class="scoreline"><span id="quizRound">1 / 8</span><span>·</span><span id="quizStars">⭐ 0</span></div>
+    <button class="prompt" id="quizPrompt" aria-label="Přehrát znovu">
+      <span style="font-size:34px">🔊</span>
+      <span class="q" id="quizQ">Where is the dog?</span>
+    </button>
+    <div class="choices" id="choices"></div>
+    <div class="row">
+      <button class="btn btn-ghost btn-sm" id="btnQuizCz">🇨🇿 Nápověda</button>
+    </div>
+  </section>
+
+  <!-- MEMORY -->
+  <section id="screen-memory" class="screen">
+    <div class="scoreline"><span id="memPairs">0 / 6 dvojic</span><span>·</span><span id="memStars">⭐ 0</span></div>
+    <div class="mem" id="memGrid"></div>
+  </section>
+
+  <!-- SAY -->
+  <section id="screen-say" class="screen">
+    <div class="dots" id="sayDots"></div>
+    <div class="flash" id="sayFlash" role="button" aria-label="Přehrát slovíčko" style="min-height:220px">
+      <div class="e" id="sayE" style="font-size:clamp(90px,22vw,130px)">🐶</div>
+      <div class="en" id="sayEn">dog</div>
+      <div class="cs" id="sayCs">pes</div>
+    </div>
+    <button class="mic" id="btnMic" aria-label="Mluv">🎤</button>
+    <div class="heard" id="heard">Ťukni na mikrofon a řekni to anglicky.</div>
+    <div class="row">
+      <button class="btn btn-ghost btn-sm" id="btnSaySkip">Přeskočit ➡️</button>
+    </div>
+  </section>
+
+  <!-- RESULT -->
+  <section id="screen-result" class="screen">
+    <div class="result">
+      <div class="big" id="resEmoji">🎉</div>
+      <h2 id="resTitle">Paráda!</h2>
+      <p class="muted" id="resSub">Zvládl jsi to.</p>
+      <div class="starsline" id="resStars">⭐⭐⭐</div>
+      <div class="row">
+        <button class="btn btn-sun btn-big" id="btnAgain">Ještě jednou 🔁</button>
+        <button class="btn btn-ghost" id="btnHomeFromResult">Domů 🏠</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- STICKERS -->
+  <section id="screen-stickers" class="screen">
+    <p class="muted center" id="albumInfo">Ťukni na nálepku a Pip ti řekne, co to je.</p>
+    <div class="album" id="album"></div>
+  </section>
+
+  <!-- PARENT -->
+  <section id="screen-parent" class="screen">
+    <div class="gate panel" id="gate">
+      <h3>Pro rodiče</h3>
+      <p class="muted">Kolik je <b id="gateQ">6 × 7</b>?</p>
+      <input type="number" inputmode="numeric" id="gateA" aria-label="Odpověď">
+      <button class="btn btn-sky" id="gateOk">Otevřít</button>
+      <p class="small muted" id="gateMsg"></p>
+    </div>
+
+    <div id="parentBody" hidden style="display:flex;flex-direction:column;gap:14px">
+      <div class="panel">
+        <h3>Přehled</h3>
+        <div class="stats" id="pStats"></div>
+      </div>
+
+      <div class="panel">
+        <h3>Hvězdičky za posledních 14 dní</h3>
+        <svg class="chart" id="chart" viewBox="0 0 600 220" role="img" aria-label="Hvězdičky po dnech"></svg>
+      </div>
+
+      <div class="panel">
+        <h3>Historie her</h3>
+        <div class="tablewrap">
+          <table class="table" id="sessTable">
+            <thead><tr><th>Kdy</th><th>Sada</th><th>Hra</th><th>Správně</th><th>Špatně</th><th>⭐</th><th>Čas</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="small muted" id="sessMore"></p>
+      </div>
+
+      <div class="panel">
+        <h3>Slovíčka</h3>
+        <p class="small muted">👑 = zvládnutí (0 až 3 korunky). Roste při správné odpovědi napoprvé, klesá při chybě.</p>
+        <div id="wordsByCat"></div>
+      </div>
+
+      <div class="panel">
+        <h3>Nastavení</h3>
+        <div class="field"><label for="setName">Jméno dítěte</label><input type="text" id="setName" maxlength="20" placeholder="např. Kuba"></div>
+        <div class="field"><label for="setVoice">Anglický hlas</label><select id="setVoice"></select><span class="small muted" id="voiceInfo"></span></div>
+        <div class="field"><label for="setRate">Rychlost řeči: <b id="rateVal">0.85</b></label><input type="range" id="setRate" min="0.5" max="1.2" step="0.05"></div>
+        <div class="field"><label for="setGoal">Denní cíl (hvězdiček)</label><input type="number" id="setGoal" min="5" max="100" step="5"></div>
+        <label class="check"><input type="checkbox" id="setSound"> Zvuky (cinkání, fanfáry)</label>
+        <label class="check"><input type="checkbox" id="setCz"> Ukazovat české překlady</label>
+        <label class="check"><input type="checkbox" id="setMic"> Povolit hru „Řekni to“ (mikrofon)</label>
+        <p class="small muted">Hra s mikrofonem používá rozpoznávání řeči v prohlížeči. Hlas může prohlížeč zpracovat přes svou externí službu; zapínejte ji jen s vědomím rodiče. Aplikace sama ukládá postup pouze v tomto prohlížeči. Výslovnost přes hlas prohlížeče se může také lišit podle zařízení.</p>
+        <button class="btn btn-ghost btn-sm" id="btnTestVoice">🔊 Vyzkoušet hlas</button>
+      </div>
+
+      <div class="panel">
+        <h3>Záloha</h3>
+        <p class="small muted">Historie je uložená jen v tomhle prohlížeči. Zkopíruj zálohu a vlož ji jinde, když měníte zařízení.</p>
+        <textarea id="exportBox" readonly aria-label="Záloha"></textarea>
+        <div class="row" style="justify-content:flex-start">
+          <button class="btn btn-ghost btn-sm" id="btnExport">Zkopírovat zálohu</button>
+          <button class="btn btn-ghost btn-sm" id="btnImport">Nahrát ze zálohy</button>
+        </div>
+        <p class="small muted" id="backupMsg"></p>
+      </div>
+
+      <div class="panel">
+        <h3>Začít od začátku</h3>
+        <p class="small muted">Smaže hvězdičky, nálepky i historii v tomhle prohlížeči.</p>
+        <div class="row" style="justify-content:flex-start">
+          <button class="btn btn-ghost btn-sm" id="btnReset">Smazat vše</button>
+          <button class="btn danger btn-sm" id="btnResetConfirm" hidden>Opravdu smazat</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="overlay" class="overlay" hidden>
+  <div class="card">
+    <div class="huge" id="ovEmoji">🎁</div>
+    <h2 id="ovTitle">Nová nálepka!</h2>
+    <p id="ovText" style="font-size:20px"></p>
+    <button class="btn btn-sun" id="ovOk">Super! 🎉</button>
+  </div>
+</div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+'use strict';
+/* ------------------------------------------------------------------ data */
+const W = (en, cs, e) => ({ en, cs, e });
+const CATS = [
+  { id:'animals', cs:'Zvířata', e:'🐶', words:[W('dog','pes','🐶'),W('cat','kočka','🐱'),W('cow','kráva','🐮'),W('pig','prase','🐷'),W('horse','kůň','🐴'),W('sheep','ovce','🐑'),W('duck','kachna','🦆'),W('fish','ryba','🐟'),W('bird','pták','🐦'),W('lion','lev','🦁'),W('elephant','slon','🐘'),W('monkey','opice','🐵')], rewards:[W('unicorn','jednorožec','🦄'),W('dragon','drak','🐉')] },
+  { id:'colors', cs:'Barvy', e:'🎨', words:[W('red','červená','🔴'),W('blue','modrá','🔵'),W('green','zelená','🟢'),W('yellow','žlutá','🟡'),W('orange','oranžová','🟠'),W('purple','fialová','🟣'),W('pink','růžová','💗'),W('black','černá','⚫'),W('white','bílá','⚪'),W('brown','hnědá','🟤')], rewards:[W('crayon','pastelka','🖍️'),W('paintbrush','štětec','🖌️')] },
+  { id:'numbers', cs:'Čísla', e:'🔢', words:[W('one','jedna','1️⃣'),W('two','dva','2️⃣'),W('three','tři','3️⃣'),W('four','čtyři','4️⃣'),W('five','pět','5️⃣'),W('six','šest','6️⃣'),W('seven','sedm','7️⃣'),W('eight','osm','8️⃣'),W('nine','devět','9️⃣'),W('ten','deset','🔟')], rewards:[W('hundred','sto','💯'),W('dice','kostka','🎲')] },
+  { id:'food', cs:'Jídlo', e:'🍎', words:[W('apple','jablko','🍎'),W('banana','banán','🍌'),W('bread','chleba','🍞'),W('milk','mléko','🥛'),W('egg','vajíčko','🥚'),W('cheese','sýr','🧀'),W('cake','dort','🎂'),W('pizza','pizza','🍕'),W('carrot','mrkev','🥕'),W('water','voda','💧'),W('ice cream','zmrzlina','🍦'),W('cookie','sušenka','🍪')], rewards:[W('candy','bonbón','🍬'),W('lollipop','lízátko','🍭')] },
+  { id:'body', cs:'Tělo', e:'🖐️', words:[W('eye','oko','👁️'),W('ear','ucho','👂'),W('nose','nos','👃'),W('mouth','pusa','👄'),W('tooth','zub','🦷'),W('hand','ruka','🖐️'),W('foot','noha','🦶'),W('leg','noha (celá)','🦵'),W('arm','paže','💪'),W('tongue','jazyk','👅'),W('brain','mozek','🧠'),W('bone','kost','🦴')], rewards:[W('superhero','superhrdina','🦸'),W('ghost','duch','👻')] },
+  { id:'people', cs:'Lidi', e:'👨‍👩‍👦', words:[W('mum','maminka','👩'),W('dad','tatínek','👨'),W('baby','miminko','👶'),W('boy','kluk','👦'),W('girl','holka','👧'),W('grandma','babička','👵'),W('grandpa','dědeček','👴'),W('doctor','doktor','🧑‍⚕️'),W('police officer','policista','👮'),W('firefighter','hasič','🧑‍🚒'),W('king','král','🤴'),W('queen','královna','👸')], rewards:[W('pirate','pirát','🏴‍☠️'),W('wizard','kouzelník','🧙')] },
+  { id:'toys', cs:'Hračky a auta', e:'🚗', words:[W('car','auto','🚗'),W('bus','autobus','🚌'),W('train','vlak','🚂'),W('plane','letadlo','✈️'),W('bike','kolo','🚲'),W('boat','loď','⛵'),W('ball','míč','⚽'),W('teddy bear','medvídek','🧸'),W('robot','robot','🤖'),W('rocket','raketa','🚀'),W('kite','drak na provázku','🪁'),W('drum','bubínek','🥁')], rewards:[W('tractor','traktor','🚜'),W('helicopter','vrtulník','🚁')] },
+  { id:'home', cs:'Doma', e:'🏠', words:[W('house','dům','🏠'),W('bed','postel','🛏️'),W('chair','židle','🪑'),W('door','dveře','🚪'),W('cup','hrnek','☕'),W('spoon','lžíce','🥄'),W('book','knížka','📖'),W('key','klíč','🔑'),W('bath','vana','🛁'),W('toilet','záchod','🚽'),W('clock','hodiny','⏰'),W('phone','telefon','📱')], rewards:[W('castle','hrad','🏰'),W('tent','stan','⛺')] },
+  { id:'nature', cs:'Příroda', e:'🌞', words:[W('sun','slunce','☀️'),W('moon','měsíc','🌙'),W('star','hvězda','⭐'),W('rain','déšť','🌧️'),W('snow','sníh','❄️'),W('cloud','mrak','☁️'),W('tree','strom','🌳'),W('flower','kytka','🌸'),W('rainbow','duha','🌈'),W('fire','oheň','🔥'),W('mountain','hora','⛰️'),W('sea','moře','🌊')], rewards:[W('volcano','sopka','🌋'),W('tornado','tornádo','🌪️')] },
+  { id:'clothes', cs:'Oblečení', e:'👕', words:[W('shirt','tričko','👕'),W('shoes','boty','👟'),W('hat','čepice','🧢'),W('socks','ponožky','🧦'),W('dress','šaty','👗'),W('jacket','bunda','🧥'),W('pants','kalhoty','👖'),W('gloves','rukavice','🧤'),W('scarf','šála','🧣'),W('glasses','brýle','👓'),W('boots','holínky','🥾'),W('crown','koruna','👑')], rewards:[W('ring','prsten','💍'),W('backpack','batoh','🎒')] },
+  { id:'feelings', cs:'Nálady', e:'😀', words:[W('happy','veselý','😀'),W('sad','smutný','😢'),W('angry','naštvaný','😠'),W('sleepy','ospalý','😴'),W('scared','vystrašený','😱'),W('surprised','překvapený','😮'),W('silly','bláznivý','🤪'),W('cool','frajer','😎'),W('sick','nemocný','🤒'),W('in love','zamilovaný','😍')], rewards:[W('clown','klaun','🤡'),W('alien','mimozemšťan','👽')] },
+];
+const CHEST_POOL = [W('treasure','poklad','💎'),W('trophy','pohár','🏆'),W('medal','medaile','🏅'),W('balloon','balónek','🎈'),W('gift','dárek','🎁'),W('magic','kouzlo','✨'),W('shark','žralok','🦈'),W('octopus','chobotnice','🐙'),W('dinosaur','dinosaurus','🦕'),W('penguin','tučňák','🐧'),W('owl','sova','🦉'),W('butterfly','motýl','🦋'),W('ladybug','beruška','🐞'),W('snail','šnek','🐌'),W('frog','žába','🐸'),W('bee','včela','🐝'),W('turtle','želva','🐢'),W('whale','velryba','🐳'),W('parrot','papoušek','🦜'),W('fox','liška','🦊'),W('bear','medvěd','🐻'),W('panda','panda','🐼'),W('koala','koala','🐨'),W('bunny','králíček','🐰'),W('hamster','křeček','🐹'),W('snowman','sněhulák','⛄'),W('pumpkin','dýně','🎃'),W('guitar','kytara','🎸'),W('trumpet','trubka','🎺'),W('crab','krab','🦀')];
+const REWARD_THRESHOLDS = [15, 40];
+const MASCOT = [[0,'🥚','vajíčko'],[20,'🐣','kuřátko'],[60,'🐥','kuře'],[120,'🐤','ptáče'],[250,'🐔','kohout'],[400,'🦖','dinosaurus'],[700,'🐲','drak'],[1000,'🦄','jednorožec']];
+const PRAISE = ['Great job!','Well done!','Awesome!','Super!','You did it!','Fantastic!','Yes! That is right!','Excellent!','Wow!'];
+const MODE_NAME = { learn:'Učím se', quiz:'Najdi', memory:'Pexeso', say:'Řekni to' };
+const QUIZ_ROUNDS = 8, MEM_PAIRS = 6, SAY_ROUNDS = 6;
+
+/* ------------------------------------------------------------------ state */
+const KEY = 'hello-pip.v1';
+const defaults = () => ({
+  v:1, created:Date.now(), name:'', stars:0,
+  words:{}, days:{}, sessions:[], stickers:[], catStars:{},
+  streak:{count:0,last:''}, chest:{date:'',opened:false},
+  settings:{ rate:0.85, voiceURI:'', sound:true, cz:true, goal:15, mic:false },
+});
+let S = load();
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(!raw) return defaults();
+    const d = defaults(), o = JSON.parse(raw);
+    return { ...d, ...o, settings:{ ...d.settings, ...(o.settings||{}) }, streak:{ ...d.streak, ...(o.streak||{}) }, chest:{ ...d.chest, ...(o.chest||{}) } };
+  }catch(e){ return defaults(); }
+}
+let saveT = null;
+function save(){
+  clearTimeout(saveT);
+  saveT = setTimeout(()=>{ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }, 80);
+}
+const pad = n => String(n).padStart(2,'0');
+const dayKey = (d=new Date()) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const today = () => dayKey();
+const yesterday = () => { const d=new Date(); d.setDate(d.getDate()-1); return dayKey(d); };
+const wid = (cat, w) => `${cat.id}:${w.en}`;
+const wstat = (cat, w) => (S.words[wid(cat,w)] ||= { seen:0, ok:0, bad:0, m:0, last:0 });
+const rnd = n => Math.floor(Math.random()*n);
+const pick = a => a[rnd(a.length)];
+const shuffle = a => { a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=rnd(i+1); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+const $ = id => document.getElementById(id);
+
+function mascotFor(stars){ let m = MASCOT[0]; for(const l of MASCOT) if(stars>=l[0]) m=l; return m; }
+function dayRec(k=today()){ return (S.days[k] ||= { stars:0, ok:0, bad:0, sec:0 }); }
+
+/* ------------------------------------------------------------------ audio */
+let AC = null;
+function ac(){ if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(AC && AC.state==='suspended') AC.resume(); return AC; }
+function tone(f, t=0.15, type='sine', when=0, vol=0.18){
+  if(!S.settings.sound) return; const c = ac(); if(!c) return;
+  const o = c.createOscillator(), g = c.createGain();
+  o.type=type; o.frequency.value=f; g.gain.value=0;
+  o.connect(g).connect(c.destination);
+  const s = c.currentTime + when;
+  g.gain.setValueAtTime(0,s); g.gain.linearRampToValueAtTime(vol,s+0.01); g.gain.exponentialRampToValueAtTime(0.0001,s+t);
+  o.start(s); o.stop(s+t+0.02);
+}
+const SFX = {
+  ok(){ tone(660,.12,'triangle',0); tone(880,.18,'triangle',.1); },
+  big(){ [523,659,784,1047].forEach((f,i)=>tone(f,.18,'triangle',i*.09)); },
+  bad(){ tone(180,.25,'sawtooth',0,.08); },
+  tap(){ tone(520,.06,'square',0,.05); },
+  flip(){ tone(700,.05,'square',0,.05); },
+  star(){ tone(1200,.08,'sine',0,.1); tone(1600,.1,'sine',.06,.1); },
+  fanfare(){ [392,523,659,784,659,784,1047].forEach((f,i)=>tone(f,.2,'triangle',i*.11,.16)); },
+};
+
+/* ------------------------------------------------------------------ speech */
+const TTS = {
+  voices:[], en:null, cs:null, ok:('speechSynthesis' in window),
+  init(){
+    if(!this.ok) return;
+    const load = ()=>{ this.voices = speechSynthesis.getVoices(); this.pick(); fillVoiceSelect(); };
+    load(); speechSynthesis.onvoiceschanged = load;
+  },
+  score(v){
+    let s = 0; const n = v.name||'', l = (v.lang||'').toLowerCase();
+    if(l.startsWith('en')) s+=10; else return -1;
+    if(/google/i.test(n)) s+=6;
+    if(/natural|neural|premium|enhanced/i.test(n)) s+=4;
+    if(/samantha|daniel|karen|moira|tessa|zira|aria|jenny|ava|allison/i.test(n)) s+=3;
+    if(/en-us|en_us/.test(l)) s+=2; if(/en-gb/.test(l)) s+=1;
+    return s;
+  },
+  pick(){
+    const v = this.voices;
+    this.en = (S.settings.voiceURI && v.find(x=>x.voiceURI===S.settings.voiceURI))
+      || v.slice().sort((a,b)=>this.score(b)-this.score(a)).find(x=>this.score(x)>=0) || null;
+    this.cs = v.find(x=>/^cs/i.test(x.lang)) || null;
+  },
+  speak(text, { lang='en-US', rate, pitch=1.05 }={}){
+    return new Promise(res=>{
+      if(!this.ok){ res(); return; }
+      try{ speechSynthesis.cancel(); }catch(e){}
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = lang; u.rate = rate ?? S.settings.rate; u.pitch = pitch; u.volume = 1;
+      const v = lang.startsWith('cs') ? this.cs : this.en; if(v) u.voice = v;
+      let done = false; const fin = ()=>{ if(!done){ done=true; res(); } };
+      u.onend = fin; u.onerror = fin;
+      setTimeout(fin, 1200 + text.length*140);
+      setTimeout(()=>{ try{ speechSynthesis.speak(u); }catch(e){ fin(); } }, 40);
+    });
+  },
+  say(w, slow=false){ return this.speak(w.en, { rate: slow ? Math.max(0.45, S.settings.rate*0.65) : undefined }); },
+  czech(w){ if(this.cs) return this.speak(w.cs, { lang:'cs-CZ', rate:0.95 }); toast(`🇨🇿 ${w.cs}`); return Promise.resolve(); },
+};
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+let srBroken = false;
+
+/* ------------------------------------------------------------------ fx */
+const CF = { c:$('confetti'), parts:[], raf:0 };
+CF.ctx = CF.c.getContext('2d');
+function resizeCF(){ CF.c.width = innerWidth*devicePixelRatio; CF.c.height = innerHeight*devicePixelRatio; }
+addEventListener('resize', resizeCF); resizeCF();
+function confetti(n=60, x=.5, y=.4){
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const cols=['#ffc83d','#ff6f61','#49c285','#4b9dff','#9b74ff','#ffb37a'];
+  for(let i=0;i<n;i++) CF.parts.push({ x:x*CF.c.width, y:y*CF.c.height, vx:(Math.random()-.5)*18*devicePixelRatio, vy:(-Math.random()*16-4)*devicePixelRatio, r:(4+Math.random()*6)*devicePixelRatio, c:pick(cols), a:Math.random()*6, va:(Math.random()-.5)*.3, life:90+Math.random()*40 });
+  if(!CF.raf) CF.raf = requestAnimationFrame(stepCF);
+}
+function stepCF(){
+  const {ctx,c} = CF; ctx.clearRect(0,0,c.width,c.height);
+  CF.parts = CF.parts.filter(p=>p.life>0 && p.y<c.height+40);
+  for(const p of CF.parts){ p.vy += .45*devicePixelRatio; p.x+=p.vx; p.y+=p.vy; p.vx*=.98; p.a+=p.va; p.life--; ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.a); ctx.fillStyle=p.c; ctx.globalAlpha=Math.min(1,p.life/30); ctx.fillRect(-p.r/2,-p.r/2,p.r,p.r*0.6); ctx.restore(); }
+  CF.raf = CF.parts.length ? requestAnimationFrame(stepCF) : 0;
+}
+let toastT = null;
+function toast(msg, ms=1800){ const t=$('toast'); t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true, ms); }
+function overlay(emoji, title, text, onOk){
+  $('ovEmoji').textContent=emoji; $('ovTitle').textContent=title; $('ovText').textContent=text;
+  const ov=$('overlay'); ov.hidden=false;
+  $('ovOk').onclick = ()=>{ ov.hidden=true; if(onOk) onOk(); };
+}
+function flashClass(el, cls){ el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+
+/* ------------------------------------------------------------------ progress */
+let sess = null;
+function startSession(mode, cat){ sess = { t:Date.now(), mode, cat:cat?cat.id:'', ok:0, bad:0, stars:0 }; }
+function endSession(){
+  if(!sess) return;
+  const dur = Math.round((Date.now()-sess.t)/1000);
+  if(sess.ok || sess.bad || sess.stars){
+    S.sessions.push({ ...sess, dur }); if(S.sessions.length>400) S.sessions = S.sessions.slice(-400);
+    dayRec().sec += dur; save();
+  }
+  sess = null;
+}
+function addStars(n, cat){
+  if(n<=0) return;
+  const before = mascotFor(S.stars);
+  S.stars += n; dayRec().stars += n; if(sess) sess.stars += n;
+  if(cat){ S.catStars[cat.id] = (S.catStars[cat.id]||0) + n; }
+  const t=today(); if(S.streak.last!==t){ S.streak.count = (S.streak.last===yesterday()) ? S.streak.count+1 : 1; S.streak.last=t; }
+  save(); renderTop();
+  const after = mascotFor(S.stars);
+  if(after!==before) queueCeleb(()=>{ SFX.fanfare(); confetti(160); overlay(after[1], 'Pip vyrostl!', `Z Pipa je teď ${after[2]}! Máš už ${S.stars} hvězdiček.`); TTS.speak('Look at me! I am growing!'); });
+  if(cat) checkCatRewards(cat);
+}
+function markOk(cat, w, first){ const s=wstat(cat,w); s.ok++; s.seen++; s.last=Date.now(); if(first) s.m=Math.min(3,s.m+1); dayRec().ok++; if(sess) sess.ok++; save(); }
+function markBad(cat, w){ const s=wstat(cat,w); s.bad++; s.seen++; s.last=Date.now(); s.m=Math.max(0,s.m-1); dayRec().bad++; if(sess) sess.bad++; save(); }
+function markSeen(cat, w){ const s=wstat(cat,w); const first = s.seen===0; s.seen++; s.last=Date.now(); save(); return first; }
+const celebQ = []; let celebBusy=false;
+function queueCeleb(fn){ celebQ.push(fn); if(!celebBusy) runCeleb(); }
+function runCeleb(){ const fn=celebQ.shift(); if(!fn){ celebBusy=false; return; } celebBusy=true; const ov=$('overlay'); fn(); const prev=$('ovOk').onclick; $('ovOk').onclick=()=>{ ov.hidden=true; if(prev) prev(); setTimeout(runCeleb,150); }; }
+function hasSticker(w){ return S.stickers.includes(w.en); }
+function giveSticker(w, why){
+  if(hasSticker(w)) return false;
+  S.stickers.push(w.en); save();
+  queueCeleb(()=>{ SFX.fanfare(); confetti(140); overlay(w.e, 'Nová nálepka!', `${why} Je to ${w.en}, česky ${w.cs}.`); TTS.speak(`A new sticker! ${w.en}!`); });
+  return true;
+}
+function checkCatRewards(cat){
+  const cs = S.catStars[cat.id]||0;
+  REWARD_THRESHOLDS.forEach((th,i)=>{ if(cs>=th && cat.rewards[i] && !hasSticker(cat.rewards[i])) giveSticker(cat.rewards[i], `Za ${th} hvězdiček ze sady ${cat.cs}.`); });
+}
+function weighted(cat, n, exclude=[]){
+  const pool = cat.words.filter(w=>!exclude.includes(w.en)).map(w=>{ const s=S.words[wid(cat,w)]; const m=s?s.m:0; return { w, wt:(4-m) + (s?0:2) }; });
+  const out=[]; while(out.length<n && pool.length){ let tot=pool.reduce((a,p)=>a+p.wt,0), r=Math.random()*tot, i=0; for(;i<pool.length;i++){ r-=pool[i].wt; if(r<=0) break; } i=Math.min(i,pool.length-1); out.push(pool[i].w); pool.splice(i,1); }
+  return out;
+}
+function known(cat){ return cat.words.filter(w=>{ const s=S.words[wid(cat,w)]; return s && s.m>=2; }).length; }
+
+/* ------------------------------------------------------------------ router */
+const stack=[]; let cur='start'; let curCat=null; let curMode=null;
+function show(id, title){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active', s.id==='screen-'+id));
+  cur=id; $('topTitle').textContent = title || 'Hello Pip'; $('btnBack').hidden = (id==='start'||id==='home'); $('stage').scrollTop=0;
+}
+function go(id, title){ if(cur!==id) stack.push(cur); show(id,title); }
+function back(){
+  stopListening();
+  if(cur==='parent') gateOpen=false;
+  if(['learn','quiz','memory','say'].includes(cur)) endSession();
+  if(cur==='result'){ while(stack.length && ['learn','quiz','memory','say','result'].includes(stack[stack.length-1])) stack.pop(); }
+  const prev = stack.pop() || 'home';
+  cur = prev;
+  if(prev==='cat' && curCat) openCat(curCat); else if(prev==='home'||prev==='start'){ renderHome(); show('home'); } else show(prev);
+}
+$('btnBack').onclick = ()=>{ SFX.tap(); back(); };
+$('btnParent').onclick = ()=>{ SFX.tap(); openParent(); };
+
+/* ------------------------------------------------------------------ top + home */
+function renderTop(){
+  $('starCount').textContent = S.stars; $('streakCount').textContent = (S.streak.last===today()||S.streak.last===yesterday()) ? S.streak.count : 0;
+  flashClass($('starPill'),'pop');
+}
+function renderHome(){
+  const m = mascotFor(S.stars);
+  $('homeMascot').textContent = m[1]; $('startMascot').textContent = m[1];
+  $('mascotLevel').textContent = `Pip je ${m[2]} · ${S.stars} ⭐`;
+  const next = MASCOT.find(l=>l[0]>S.stars); if(next) $('mascotLevel').textContent += ` · další proměna za ${next[0]-S.stars}`;
+  const h = new Date().getHours(); const g = h<10?'Dobré ráno':h<18?'Ahoj':'Dobrý večer';
+  $('homeGreeting').textContent = S.name ? `${g}, ${S.name}!` : `${g}!`;
+  const d = dayRec(); const goal = S.settings.goal;
+  const pct = Math.min(100, Math.round(d.stars/goal*100));
+  $('dailyBar').querySelector('i').style.width = pct+'%'; $('dailyBar').classList.toggle('full', d.stars>=goal);
+  $('dailyText').textContent = `Dnes ${d.stars} / ${goal} ⭐`;
+  if(S.chest.date!==today()){ S.chest = { date:today(), opened:false }; save(); }
+  const ready = d.stars>=goal && !S.chest.opened;
+  $('btnChest').classList.toggle('ready', ready); $('btnChest').textContent = S.chest.opened ? '🎀' : '🎁';
+  $('stickerCount').textContent = S.stickers.length;
+
+  const g2 = $('catGrid'); g2.innerHTML='';
+  for(const cat of CATS){
+    const k = known(cat); const b = document.createElement('button'); b.className='tile';
+    b.innerHTML = `<span class="e">${cat.e}</span><span class="l">${cat.cs}</span><span class="crowns">${'👑'.repeat(Math.min(3, Math.floor(k/cat.words.length*3.999)))}</span>`;
+    if(k===cat.words.length){ const bd=document.createElement('span'); bd.className='badge'; bd.textContent='✓'; b.appendChild(bd); }
+    b.onclick = ()=>{ SFX.tap(); openCat(cat); };
+    g2.appendChild(b);
+  }
+  const all = CATS.flatMap(c=>c.words.map(w=>({c,w}))); const seed = Number(today().replace(/-/g,'')); const wod = all[seed % all.length];
+  $('wodEmoji').textContent = wod.w.e; $('wodEn').textContent = wod.w.en; $('wodCs').textContent = S.settings.cz ? wod.w.cs : '';
+  $('wodCard').onclick = ()=>{ SFX.tap(); flashClass($('wodEmoji'),'wiggle'); TTS.say(wod.w); };
+}
+$('homeMascot').onclick = ()=>{ flashClass($('homeMascot'),'wiggle'); SFX.star(); const lines=['Hello! I am Pip!','Hi there! Let us play!','Hello my friend!','I love English!','Let us learn new words!']; TTS.speak(pick(lines)); };
+$('btnChest').onclick = ()=>{
+  const d=dayRec(); const goal=S.settings.goal;
+  if(S.chest.opened){ toast('Dnešní truhla už je otevřená. Zítra bude nová!'); return; }
+  if(d.stars<goal){ SFX.tap(); toast(`Ještě ${goal-d.stars} ⭐ a truhla se otevře!`); TTS.speak('Not yet! Keep going!'); return; }
+  S.chest.opened = true; save(); renderHome();
+  const left = CHEST_POOL.filter(w=>!hasSticker(w));
+  if(left.length){ giveSticker(pick(left), 'Splnil jsi dnešní cíl!'); }
+  else { addStars(10); queueCeleb(()=>{ SFX.fanfare(); confetti(120); overlay('💰','Bonus!','Všechny nálepky z truhly už máš. Tady je 10 hvězdiček navíc!'); }); }
+};
+$('btnStickers').onclick = ()=>{ SFX.tap(); openAlbum(); };
+
+/* ------------------------------------------------------------------ start */
+$('btnStart').onclick = async ()=>{
+  ac(); SFX.big(); renderHome(); show('home');
+  await TTS.speak('Hello! I am Pip!');
+  if(!TTS.ok) toast('Tenhle prohlížeč neumí číst nahlas. Zkus Chrome nebo Safari.', 4000);
+};
+$('startMascot').onclick = ()=>{ ac(); flashClass($('startMascot'),'wiggle'); TTS.speak('Hello! I am Pip!'); };
+
+/* ------------------------------------------------------------------ category */
+function openCat(cat){
+  curCat = cat; go('cat', cat.cs);
+  $('catEmoji').textContent = cat.e; $('catName').textContent = cat.cs;
+  const k = known(cat); $('catProgress').textContent = `${k} / ${cat.words.length} slovíček znáš · ${S.catStars[cat.id]||0} ⭐ v téhle sadě`;
+  $('catBar').querySelector('i').style.width = Math.round(k/cat.words.length*100)+'%';
+  const cs = S.catStars[cat.id]||0; const rw = $('catRewards'); rw.innerHTML='';
+  cat.rewards.forEach((r,i)=>{ const el=document.createElement('button'); const won=hasSticker(r); el.className='reward '+(won?'won':'lockd'); el.textContent = won? r.e : '❓'; el.title = won? r.en : `za ${REWARD_THRESHOLDS[i]} ⭐`; el.onclick=()=>{ if(won){ SFX.star(); TTS.say(r); } else { SFX.tap(); toast(`Odemkne se za ${REWARD_THRESHOLDS[i]} ⭐ z téhle sady. Máš ${cs}.`); } }; rw.appendChild(el); });
+  const nextTh = REWARD_THRESHOLDS.find(t=>t>cs);
+  $('catRewardHint').textContent = nextTh ? `Další nálepka za ${nextTh-cs} ⭐` : 'Obě nálepky máš!';
+  $('modeSay').disabled = !SR || srBroken || !S.settings.mic; $('modeSay').title = (!SR||srBroken) ? 'Rozpoznávání řeči tu není dostupné' : !S.settings.mic ? 'Rodič může mikrofon povolit v nastavení' : '';
+  $('modeSay').querySelector('.d').textContent = (!SR||srBroken) ? 'Tady to nejde' : !S.settings.mic ? 'Povolí rodič v nastavení' : 'Mluv do mikrofonu';
+}
+document.querySelectorAll('.mode').forEach(b=>b.onclick=()=>{ SFX.tap(); startMode(b.dataset.mode); });
+function startMode(mode){
+  curMode = mode; const cat = curCat; startSession(mode, cat);
+  if(mode==='learn') startLearn(cat); else if(mode==='quiz') startQuiz(cat); else if(mode==='memory') startMemory(cat); else if(mode==='say') startSay(cat);
+}
+function finish(emoji, title, sub, stars){
+  endSession(); go('result', 'Hotovo!');
+  $('resEmoji').textContent = emoji; $('resTitle').textContent = title; $('resSub').textContent = sub;
+  $('resStars').textContent = stars>0 ? '⭐'.repeat(Math.min(stars,10)) + (stars>10?` +${stars-10}`:'') : '🙂';
+  SFX.big(); confetti(stars>=8?180:90); TTS.speak(pick(PRAISE));
+}
+$('btnAgain').onclick = ()=>{ SFX.tap(); cur = stack.pop() || 'cat'; startMode(curMode); };
+$('btnHomeFromResult').onclick = ()=>{ SFX.tap(); stack.length=0; renderHome(); show('home'); };
+
+/* ------------------------------------------------------------------ learn */
+const L = { words:[], i:0, newStars:0, firstSeen:0 };
+function startLearn(cat){
+  L.words = cat.words.slice(); L.i=0; L.newStars=0; L.firstSeen=0;
+  go('learn', `📖 ${cat.cs}`); renderLearn(true);
+}
+function renderLearn(speak){
+  const w = L.words[L.i]; $('flashE').textContent=w.e; $('flashEn').textContent=w.en; $('flashCs').textContent = S.settings.cz ? w.cs : '';
+  flashClass($('flash'),'pop');
+  $('learnDots').innerHTML = L.words.map((_,i)=>`<i class="${i<L.i?'done':i===L.i?'cur':''}"></i>`).join('');
+  $('btnLearnNext').textContent = L.i===L.words.length-1 ? 'Hotovo ✅' : 'Další ➡️';
+  if(markSeen(curCat, w)){ L.firstSeen++; addStars(1, curCat); SFX.star(); }
+  if(speak) TTS.say(w);
+}
+$('flash').onclick = ()=>{ flashClass($('flashE'),'wiggle'); SFX.tap(); TTS.say(L.words[L.i]); };
+$('btnLearnSay').onclick = ()=>{ SFX.tap(); TTS.say(L.words[L.i]); };
+$('btnLearnSlow').onclick = ()=>{ SFX.tap(); TTS.say(L.words[L.i], true); };
+$('btnLearnCz').onclick = ()=>{ SFX.tap(); TTS.czech(L.words[L.i]); };
+$('btnLearnNext').onclick = ()=>{
+  SFX.tap();
+  if(L.i < L.words.length-1){ L.i++; renderLearn(true); return; }
+  let bonus = 0; if(L.firstSeen===0){ bonus = 2; addStars(2, curCat); }
+  finish('📖', 'Prošel jsi celou sadu!', L.firstSeen ? `${L.firstSeen} nových slovíček. Teď je zkus najít!` : 'Všechna slovíčka už znáš. Zkus Najdi nebo Pexeso!', L.firstSeen + bonus);
+};
+
+/* ------------------------------------------------------------------ quiz */
+const Q = { round:0, target:null, opts:[], tries:0, stars:0, ok:0, busy:false, used:[] };
+function startQuiz(cat){ Q.round=0; Q.stars=0; Q.ok=0; Q.used=[]; go('quiz', `🔍 ${cat.cs}`); nextQuiz(); }
+function nextQuiz(){
+  if(Q.round>=QUIZ_ROUNDS){ finish(Q.ok>=QUIZ_ROUNDS-1?'🏆':'🎉', Q.ok===QUIZ_ROUNDS?'Všechno správně!':'Paráda!', `${Q.ok} z ${QUIZ_ROUNDS} napoprvé správně.`, Q.stars); return; }
+  Q.round++; Q.tries=0; Q.busy=false;
+  const [t] = weighted(curCat, 1, Q.used); Q.target = t; Q.used.push(t.en); if(Q.used.length>curCat.words.length-4) Q.used.shift();
+  const others = shuffle(curCat.words.filter(w=>w.en!==t.en)).slice(0,3);
+  Q.opts = shuffle([t, ...others]);
+  $('quizRound').textContent = `${Q.round} / ${QUIZ_ROUNDS}`; $('quizStars').textContent = `⭐ ${Q.stars}`;
+  $('quizQ').textContent = `Where is the ${t.en}?`;
+  const c = $('choices'); c.innerHTML='';
+  Q.opts.forEach(w=>{ const b=document.createElement('button'); b.className='choice'; b.textContent=w.e; b.setAttribute('aria-label', w.en); b.onclick=()=>answer(w,b); c.appendChild(b); });
+  TTS.speak(`${t.en}. Where is the ${t.en}?`);
+}
+async function answer(w, btn){
+  if(Q.busy) return;
+  if(w.en===Q.target.en){
+    Q.busy=true; btn.classList.add('right'); document.querySelectorAll('.choice').forEach(b=>{ if(b!==btn) b.classList.add('dim'); });
+    const first = Q.tries===0; const got = first?2:1; Q.stars+=got; if(first) Q.ok++;
+    markOk(curCat, w, first); addStars(got, curCat); SFX.ok(); confetti(first?70:30, .5, .5);
+    $('quizStars').textContent = `⭐ ${Q.stars}`;
+    await TTS.speak(`${pick(PRAISE)} ${w.en}!`);
+    if(cur==='quiz') setTimeout(()=>{ if(cur==='quiz') nextQuiz(); }, 500);
+  } else {
+    Q.tries++; btn.classList.add('wrong'); SFX.bad(); if(Q.tries===1) markBad(curCat, Q.target);
+    await TTS.speak(`No, that is a ${w.en}. Where is the ${Q.target.en}?`);
+  }
+}
+$('quizPrompt').onclick = ()=>{ SFX.tap(); TTS.speak(`Where is the ${Q.target.en}?`); };
+$('btnQuizCz').onclick = ()=>{ SFX.tap(); TTS.czech(Q.target); };
+
+/* ------------------------------------------------------------------ memory */
+const M = { cards:[], open:[], pairs:0, stars:0, lock:false };
+function startMemory(cat){
+  const ws = weighted(cat, MEM_PAIRS); M.cards = shuffle(ws.flatMap(w=>[{w,k:0},{w,k:1}])); M.open=[]; M.pairs=0; M.stars=0; M.lock=false;
+  go('memory', `🃏 ${cat.cs}`);
+  $('memPairs').textContent = `0 / ${MEM_PAIRS} dvojic`; $('memStars').textContent='⭐ 0';
+  const g=$('memGrid'); g.innerHTML='';
+  M.cards.forEach((c,i)=>{ const b=document.createElement('button'); b.className='mcard'; b.innerHTML=`<span class="b">❓</span><span class="f">${c.w.e}</span>`; b.setAttribute('aria-label','karta'); b.onclick=()=>flip(i,b); g.appendChild(b); c.el=b; });
+  TTS.speak('Find the pairs!');
+}
+async function flip(i, el){
+  if(M.lock || el.classList.contains('open') || el.classList.contains('done')) return;
+  el.classList.add('open'); SFX.flip(); M.open.push(i); TTS.say(M.cards[i].w);
+  if(M.open.length<2) return;
+  M.lock=true; const [a,b]=M.open.map(j=>M.cards[j]);
+  if(a.w.en===b.w.en){
+    await new Promise(r=>setTimeout(r,500));
+    a.el.classList.add('done'); b.el.classList.add('done'); a.el.classList.remove('open'); b.el.classList.remove('open');
+    M.pairs++; M.stars+=2; markOk(curCat, a.w, true); addStars(2, curCat); SFX.ok(); confetti(40,.5,.5);
+    $('memPairs').textContent = `${M.pairs} / ${MEM_PAIRS} dvojic`; $('memStars').textContent=`⭐ ${M.stars}`;
+    M.open=[]; M.lock=false;
+    if(M.pairs===MEM_PAIRS){ setTimeout(()=>{ if(cur==='memory') finish('🃏','Všechny dvojice!',`${MEM_PAIRS} dvojic, ${M.stars} hvězdiček.`, M.stars); }, 600); }
+  } else {
+    if(sess) sess.bad++;
+    await new Promise(r=>setTimeout(r,1000));
+    a.el.classList.remove('open'); b.el.classList.remove('open'); M.open=[]; M.lock=false;
+  }
+}
+
+/* ------------------------------------------------------------------ say it */
+const Y = { words:[], i:0, tries:0, stars:0, ok:0, rec:null, listening:false };
+function startSay(cat){ Y.words = weighted(cat, SAY_ROUNDS); Y.i=0; Y.stars=0; Y.ok=0; go('say', `🎤 ${cat.cs}`); renderSay(); }
+function renderSay(){
+  const w=Y.words[Y.i]; Y.tries=0; $('sayE').textContent=w.e; $('sayEn').textContent=w.en; $('sayCs').textContent = S.settings.cz ? w.cs : '';
+  $('sayDots').innerHTML = Y.words.map((_,i)=>`<i class="${i<Y.i?'done':i===Y.i?'cur':''}"></i>`).join('');
+  $('heard').textContent = 'Poslouchej a pak to řekni do mikrofonu.'; flashClass($('sayFlash'),'pop');
+  TTS.say(w);
+}
+$('sayFlash').onclick = ()=>{ SFX.tap(); TTS.say(Y.words[Y.i]); };
+$('btnSaySkip').onclick = ()=>{ SFX.tap(); stopListening(); sayNext(); };
+function sayNext(){ if(Y.i<Y.words.length-1){ Y.i++; renderSay(); } else finish('🎤','Mluvíš anglicky!',`${Y.ok} z ${Y.words.length} slovíček Pip poznal.`, Y.stars); }
+function norm(s){ return s.toLowerCase().replace(/[^a-z ]/g,' ').replace(/\s+/g,' ').trim(); }
+function lev(a,b){ const m=a.length,n=b.length; const d=Array.from({length:m+1},(_,i)=>[i,...Array(n).fill(0)]); for(let j=1;j<=n;j++) d[0][j]=j; for(let i=1;i<=m;i++) for(let j=1;j<=n;j++) d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1)); return d[m][n]; }
+function matches(heard, target){
+  const h=norm(heard), t=norm(target); if(!h) return false;
+  if(h.includes(t)) return true;
+  const tol = t.length<=3 ? 1 : 2;
+  return h.split(' ').some(tok=>lev(tok,t)<=tol) || lev(h,t)<=tol;
+}
+function stopListening(){ if(Y.rec){ try{ Y.rec.abort(); }catch(e){} Y.rec=null; } Y.listening=false; $('btnMic').classList.remove('listening'); }
+$('btnMic').onclick = ()=>{
+  if(!SR || srBroken){ toast('Rozpoznávání řeči tu není dostupné.'); return; }
+  if(Y.listening){ stopListening(); return; }
+  try{ speechSynthesis.cancel(); }catch(e){}
+  const r = new SR(); r.lang='en-US'; r.interimResults=false; r.maxAlternatives=5; Y.rec=r; Y.listening=true;
+  $('btnMic').classList.add('listening'); $('heard').textContent='Poslouchám… 👂'; SFX.tap();
+  r.onresult = ev=>{
+    const alts = Array.from(ev.results[0]).map(a=>a.transcript); const w=Y.words[Y.i];
+    const hit = alts.some(a=>matches(a, w.en));
+    $('heard').textContent = `Slyšel jsem: „${alts[0]}“`;
+    if(hit){ Y.listening=false; $('btnMic').disabled=true; Y.ok++; Y.stars+=2; markOk(curCat,w,Y.tries===0); addStars(2,curCat); SFX.ok(); confetti(80,.5,.5); TTS.speak(`${pick(PRAISE)} ${w.en}!`).then(()=>setTimeout(()=>{ if(cur==='say'){ $('btnMic').disabled=false; sayNext(); } },400)); }
+    else {
+      Y.tries++;
+      if(Y.tries>=2){ $('btnMic').disabled=true; Y.stars+=1; markSeen(curCat,w); addStars(1,curCat); $('heard').textContent += ' · Dobrý pokus!'; TTS.speak(`Good try! ${w.en}. ${w.en}.`).then(()=>setTimeout(()=>{ if(cur==='say'){ $('btnMic').disabled=false; sayNext(); } },400)); }
+      else { SFX.bad(); TTS.speak(`Almost! Say: ${w.en}.`); }
+    }
+  };
+  r.onerror = ev=>{
+    stopListening();
+    if(ev.error==='not-allowed' || ev.error==='service-not-allowed'){ srBroken=true; $('heard').textContent='Mikrofon není povolený. Hra Řekni to tady nepůjde.'; toast('Mikrofon není povolený v tomhle prohlížeči.', 3500); }
+    else if(ev.error==='no-speech'){ $('heard').textContent='Nic jsem neslyšel. Zkus to znovu a mluv nahlas!'; }
+    else { $('heard').textContent='Nepovedlo se poslouchat. Zkus to znovu.'; }
+  };
+  r.onend = ()=>{ Y.listening=false; $('btnMic').classList.remove('listening'); };
+  try{ r.start(); }catch(e){ stopListening(); $('heard').textContent='Mikrofon se nepodařilo spustit.'; }
+};
+
+/* ------------------------------------------------------------------ album */
+function openAlbum(){
+  go('stickers', '📒 Nálepky');
+  const all = [...CATS.flatMap(c=>c.rewards), ...CHEST_POOL];
+  $('albumInfo').textContent = `${S.stickers.length} z ${all.length} nálepek. Ťukni na nálepku a Pip ti řekne, co to je.`;
+  const a=$('album'); a.innerHTML='';
+  all.forEach(w=>{ const b=document.createElement('button'); const won=hasSticker(w); b.className='sticker '+(won?'':'none'); b.textContent = won? w.e : '❓'; b.setAttribute('aria-label', won? w.en : 'zamčená nálepka');
+    b.onclick=()=>{ if(won){ flashClass(b,'new'); SFX.star(); TTS.say(w); toast(`${w.en} = ${w.cs}`); } else { SFX.tap(); toast('Tuhle ještě nemáš. Hraj dál!'); } }; a.appendChild(b); });
+}
+
+/* ------------------------------------------------------------------ parent */
+let gateAns = 0, gateOpen = false;
+function openParent(){
+  go('parent', 'Pro rodiče');
+  if(gateOpen){ $('gate').hidden=true; $('parentBody').hidden=false; renderParent(); return; }
+  const a=3+rnd(7), b=3+rnd(7); gateAns=a*b; $('gateQ').textContent=`${a} × ${b}`; $('gateA').value=''; $('gateMsg').textContent='';
+  $('gate').hidden=false; $('parentBody').hidden=true;
+}
+$('gateOk').onclick = ()=>{ if(Number($('gateA').value)===gateAns){ gateOpen=true; openParent(); } else { $('gateMsg').textContent='To nesedí, zkus to znovu.'; $('gateA').value=''; } };
+$('gateA').onkeydown = e=>{ if(e.key==='Enter') $('gateOk').click(); };
+function fmtDate(ts){ const d=new Date(ts); return `${d.getDate()}. ${d.getMonth()+1}. ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function fmtDur(s){ return s<60 ? `${s} s` : `${Math.floor(s/60)} min ${pad(s%60)} s`; }
+function renderParent(){
+  const words = Object.values(S.words); const knownN = words.filter(w=>w.m>=2).length; const seenN = words.filter(w=>w.seen>0).length;
+  const total = CATS.reduce((a,c)=>a+c.words.length,0); const days = Object.keys(S.days).filter(k=>S.days[k].stars>0).length;
+  const sec = Object.values(S.days).reduce((a,d)=>a+(d.sec||0),0);
+  $('pStats').innerHTML = [
+    [S.stars,'hvězdiček celkem'], [`${knownN} / ${total}`,'slovíček zvládnuto (👑👑+)'], [`${seenN}`,'slovíček viděno'], [days,'dní hraní'],
+    [S.streak.last===today()||S.streak.last===yesterday()?S.streak.count:0,'dní v řadě'], [S.stickers.length,'nálepek'], [S.sessions.length,'odehraných her'], [fmtDur(sec),'čas celkem'],
+  ].map(([v,l])=>`<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('');
+
+  const keys=[]; for(let i=13;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); keys.push(dayKey(d)); }
+  const vals = keys.map(k=>(S.days[k]||{}).stars||0); const max = Math.max(S.settings.goal, ...vals, 1);
+  const Wd=600,H=220,pl=34,pr=10,pt=18,pb=34; const iw=(Wd-pl-pr)/14; const y=v=>pt+(H-pt-pb)*(1-v/max);
+  let svg = `<line x1="${pl}" y1="${y(0)}" x2="${Wd-pr}" y2="${y(0)}" stroke="var(--card-border)" stroke-width="2"/>`;
+  svg += `<line x1="${pl}" y1="${y(S.settings.goal)}" x2="${Wd-pr}" y2="${y(S.settings.goal)}" stroke="var(--coral)" stroke-width="2" stroke-dasharray="6 5"/><text x="${pl}" y="${y(S.settings.goal)-5}" font-size="12" fill="var(--coral)" font-family="inherit">cíl ${S.settings.goal}</text>`;
+  svg += `<text x="${pl-6}" y="${y(max)+4}" font-size="12" text-anchor="end" fill="var(--muted)">${max}</text><text x="${pl-6}" y="${y(0)+4}" font-size="12" text-anchor="end" fill="var(--muted)">0</text>`;
+  keys.forEach((k,i)=>{ const v=vals[i]; const x=pl+i*iw+iw*0.18, bw=iw*0.64; const top=y(v); const h=y(0)-top; const d=new Date(k+'T12:00:00');
+    svg += `<rect x="${x}" y="${top}" width="${bw}" height="${h}" rx="6" fill="${k===today()?'var(--coral)':v>=S.settings.goal?'var(--grass)':'var(--sun)'}"/>`;
+    if(v) svg += `<text x="${x+bw/2}" y="${top-4}" font-size="12" text-anchor="middle" fill="var(--fg)">${v}</text>`;
+    svg += `<text x="${x+bw/2}" y="${H-pb+16}" font-size="11" text-anchor="middle" fill="var(--muted)">${d.getDate()}.${d.getMonth()+1}.</text>`; });
+  $('chart').innerHTML = svg;
+
+  const tb = $('sessTable').querySelector('tbody'); const list = S.sessions.slice().reverse(); const shown = list.slice(0,30);
+  tb.innerHTML = shown.map(s=>{ const c=CATS.find(x=>x.id===s.cat); return `<tr><td>${fmtDate(s.t)}</td><td>${c?c.e+' '+c.cs:'—'}</td><td>${MODE_NAME[s.mode]||s.mode}</td><td>${s.ok}</td><td>${s.bad}</td><td>${s.stars}</td><td>${fmtDur(s.dur||0)}</td></tr>`; }).join('') || '<tr><td colspan="7" class="muted">Zatím žádná hra. Historie se začne plnit po první hře.</td></tr>';
+  $('sessMore').textContent = list.length>30 ? `Zobrazeno 30 z ${list.length} her. Všechny jsou v záloze níže.` : '';
+
+  $('wordsByCat').innerHTML = CATS.map(c=>{ const k=known(c); const rows=c.words.map(w=>{ const s=S.words[wid(c,w)]||{seen:0,ok:0,bad:0,m:0,last:0}; return `<tr><td>${w.e} ${w.en}</td><td class="muted">${w.cs}</td><td><span class="mastery">${'👑'.repeat(s.m)}${'·'.repeat(3-s.m)}</span></td><td>${s.ok}</td><td>${s.bad}</td><td class="muted">${s.last?fmtDate(s.last):'—'}</td></tr>`; }).join('');
+    return `<details><summary>${c.e} ${c.cs} — ${k}/${c.words.length} zvládnuto, ${S.catStars[c.id]||0} ⭐</summary><div class="tablewrap"><table class="table"><thead><tr><th>Slovo</th><th>Česky</th><th>Zvládnutí</th><th>Správně</th><th>Špatně</th><th>Naposledy</th></tr></thead><tbody>${rows}</tbody></table></div></details>`; }).join('');
+
+  $('setName').value=S.name; $('setRate').value=S.settings.rate; $('rateVal').textContent=S.settings.rate.toFixed(2); $('setGoal').value=S.settings.goal; $('setSound').checked=S.settings.sound; $('setCz').checked=S.settings.cz; $('setMic').checked=S.settings.mic === true;
+  fillVoiceSelect();
+  $('exportBox').value = JSON.stringify(S); $('backupMsg').textContent=''; $('btnResetConfirm').hidden=true;
+}
+function fillVoiceSelect(){
+  const sel=$('setVoice'); if(!sel) return; const en = TTS.voices.filter(v=>/^en/i.test(v.lang)).sort((a,b)=>TTS.score(b)-TTS.score(a));
+  sel.innerHTML = `<option value="">Automaticky${TTS.en?` (${TTS.en.name})`:''}</option>` + en.map(v=>`<option value="${v.voiceURI.replace(/"/g,'&quot;')}">${v.name} · ${v.lang}${/google/i.test(v.name)?' · Google':''}</option>`).join('');
+  sel.value = S.settings.voiceURI && en.some(v=>v.voiceURI===S.settings.voiceURI) ? S.settings.voiceURI : '';
+  const gCount = en.filter(v=>/google/i.test(v.name)).length;
+  $('voiceInfo').textContent = !TTS.ok ? 'Prohlížeč neumí číst nahlas.' : en.length===0 ? 'Zatím žádný anglický hlas. V Chrome se hlasy načtou po chvilce; na Androidu doinstaluj „Google Text-to-speech“.' : gCount ? `${en.length} anglických hlasů, z toho ${gCount} od Google.` : `${en.length} anglických hlasů (Google hlasy jsou jen v Chrome).`;
+  $('voiceNote').textContent = TTS.ok ? '' : 'Tenhle prohlížeč neumí číst nahlas. Použij Chrome nebo Safari.';
+}
+$('setName').oninput = e=>{ S.name=e.target.value.trim(); save(); };
+$('setVoice').onchange = e=>{ S.settings.voiceURI=e.target.value; TTS.pick(); save(); TTS.speak('Hello! I am Pip!'); };
+$('setRate').oninput = e=>{ S.settings.rate=Number(e.target.value); $('rateVal').textContent=S.settings.rate.toFixed(2); save(); };
+$('setRate').onchange = ()=>TTS.speak('Hello! Where is the dog?');
+$('setGoal').onchange = e=>{ S.settings.goal=Math.max(5,Math.min(100,Number(e.target.value)||15)); e.target.value=S.settings.goal; save(); };
+$('setSound').onchange = e=>{ S.settings.sound=e.target.checked; save(); SFX.ok(); };
+$('setCz').onchange = e=>{ S.settings.cz=e.target.checked; save(); };
+$('setMic').onchange = e=>{ S.settings.mic=e.target.checked; save(); };
+$('btnTestVoice').onclick = ()=>TTS.speak('Hello! I am Pip. Where is the elephant?');
+$('btnExport').onclick = async ()=>{
+  const txt=JSON.stringify(S); $('exportBox').value=txt;
+  try{ await navigator.clipboard.writeText(txt); $('backupMsg').textContent='Záloha je ve schránce. Vlož ji do poznámek nebo pošli sám sobě.'; }
+  catch(e){ $('exportBox').focus(); $('exportBox').select(); $('backupMsg').textContent='Text je označený, zkopíruj ho ručně (Ctrl/Cmd + C).'; }
+};
+$('btnImport').onclick = ()=>{
+  const box=$('exportBox');
+  if(box.readOnly){ box.readOnly=false; box.value=''; box.placeholder='Sem vlož text zálohy a znovu klepni na Nahrát ze zálohy.'; box.focus(); $('backupMsg').textContent='Vlož zálohu do pole výše.'; return; }
+  try{ const o=JSON.parse(box.value);
+    const obj=x=>x && typeof x==='object' && !Array.isArray(x);
+    const num=x=>typeof x==='number' && Number.isFinite(x) && x>=0;
+    if(!obj(o)||!num(o.stars)||!obj(o.words)||!obj(o.days)||!obj(o.catStars)||!Array.isArray(o.sessions)||!Array.isArray(o.stickers)||!obj(o.settings)||!obj(o.streak)||!obj(o.chest)) throw new Error('bad');
+    if(!o.stickers.every(x=>typeof x==='string' && !/[<>]/.test(x)) || !o.sessions.every(x=>obj(x)&&num(x.t)&&num(x.ok)&&num(x.bad)&&num(x.stars)&&num(x.dur)&&typeof x.cat==='string'&&typeof x.mode==='string'&&!/[<>]/.test(x.mode))) throw new Error('bad');
+    if(!Object.values(o.words).every(x=>obj(x)&&num(x.seen)&&num(x.ok)&&num(x.bad)&&Number.isInteger(x.m)&&x.m>=0&&x.m<=3&&num(x.last))) throw new Error('bad');
+    if(!Object.values(o.days).every(x=>obj(x)&&num(x.stars)&&num(x.ok)&&num(x.bad)&&num(x.sec)) || !Object.values(o.catStars).every(num) || !num(o.settings.goal) || o.settings.goal<5 || o.settings.goal>100 || !num(o.settings.rate) || o.settings.rate>2) throw new Error('bad');
+    if(!num(o.streak.count)||typeof o.streak.last!=='string'||!/^\d{4}-\d{2}-\d{2}$|^$/.test(o.streak.last)||typeof o.chest.date!=='string'||typeof o.chest.opened!=='boolean') throw new Error('bad');
+    S = { ...defaults(), ...o, settings:{ ...defaults().settings, ...o.settings, mic:o.settings.mic===true } }; save(); TTS.pick(); box.readOnly=true; renderTop(); renderParent(); $('backupMsg').textContent='Záloha nahraná.'; toast('Záloha nahraná ✅'); }
+  catch(e){ $('backupMsg').textContent='Tohle není platná záloha. Zkontroluj, že je zkopírovaný celý text.'; }
+};
+$('btnReset').onclick = ()=>{ $('btnResetConfirm').hidden=false; };
+$('btnResetConfirm').onclick = ()=>{ S=defaults(); try{ localStorage.removeItem(KEY); }catch(e){} save(); renderTop(); renderParent(); toast('Smazáno. Začínáme od vajíčka 🥚'); };
+
+/* ------------------------------------------------------------------ boot */
+TTS.init(); renderTop(); renderHome();
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden){ stopListening(); try{ speechSynthesis.cancel(); }catch(e){} } });
+addEventListener('beforeunload', ()=>{ if(sess) endSession(); try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} });
+</script>
+</body>
+</html>
